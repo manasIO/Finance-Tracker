@@ -96,6 +96,29 @@ struct ContentView: View {
             category: "Groceries",
             isLuxury: true
         )
+        
+        reciept.items = [milk, apples, cookies]
+        
+        modelContext.insert(reciept)
+        saveChanges()
     }
     
+    private func deleteReceipts(at offsets: IndexSet){
+        let recieptsToDelete = offset.map { receipts[$0] }
+        
+        for receipt in receiptToDelete {
+            modelContext.delete(receipt)
+        }
+        saveChanges()
+    }
+    
+    private func saveChanges(){
+        do{
+            try modelContext.save()
+        } catch {
+            modelContext.rollback()
+            errorMessage = error.localizedDescription
+            showingError = true
+        }
+    }
 }
