@@ -20,13 +20,13 @@ final class Receipt {
     
     init(
         merchantName: String,
-        purchareDate: Date = .now,
+        purchaseDate: Date = .now,
         currencyCode: String = "USD",
         totalCents: Int64 = 0
     ){
         self.id = UUID()
         self.merchantName = merchantName
-        self.purchaseDate = purchareDate
+        self.purchaseDate = purchaseDate
         self.currencyCode = currencyCode
         self.totalCents = totalCents
     }

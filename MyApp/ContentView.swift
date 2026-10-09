@@ -10,11 +10,17 @@ struct ContentView: View {
 
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var showingAddReceipt = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
+                    Button {
+                        showingAddReceipt = true
+                    } label: {
+                        Label("Add receipt", systemImage: "plus.circle")
+                    }
                     Button {
                         addSampleReceipt()
                     } label: {
@@ -60,6 +66,10 @@ struct ContentView: View {
                 }
             }
             .navigationTitle("Finance Tracker")
+            .sheet(isPresented: $showingAddReceipt){
+                    AddReceiptView()
+                    .modelContainer(modelContext.container)
+            }
             .alert("Couldn't save changes", isPresented: $showingError) {
                 Button("OK", role: .cancel) {}
             } message: {
