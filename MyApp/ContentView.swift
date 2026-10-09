@@ -4,14 +4,14 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    
-    @Query(sort: \Receipt.purchaseData, order: .reverse)
+
+    @Query(sort: \Receipt.purchaseDate, order: .reverse)
     private var receipts: [Receipt]
-    
+
     @State private var showingError = false
     @State private var errorMessage = ""
-    
-    var body: some View{
+
+    var body: some View {
         NavigationStack {
             List {
                 Section {
@@ -21,22 +21,22 @@ struct ContentView: View {
                         Label("Add sample receipt", systemImage: "plus")
                     }
                 }
-                
-                Section("Saved receipts"){
+
+                Section("Saved receipts") {
                     if receipts.isEmpty {
-                        Text("No receipts yet. Add a sample to get started. ")
+                        Text("No receipts yet. Add a sample to get started.")
                             .foregroundStyle(.secondary)
                     }
-                    
+
                     ForEach(receipts) { receipt in
-                        NavigationLink{
+                        NavigationLink {
                             ReceiptDetailView(receipt: receipt)
                         } label: {
                             HStack {
-                                VStack(alignement: .leading, spacing: 4) {
+                                VStack(alignment: .leading, spacing: 4) {
                                     Text(receipt.merchantName)
                                         .font(.headline)
-                                    
+
                                     Text(
                                         receipt.purchaseDate,
                                         format: .dateTime.month().day().year()
@@ -44,12 +44,14 @@ struct ContentView: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 }
-                                
+
                                 Spacer()
-                                
+
                                 Text(
                                     dollars(receipt.totalCents),
-                                    format: .currency(code: receipt.currencyCode)
+                                    format: .currency(
+                                        code: receipt.currencyCode
+                                    )
                                 )
                             }
                         }
@@ -65,13 +67,13 @@ struct ContentView: View {
             }
         }
     }
-    
+
     private func addSampleReceipt() {
-        let reciept = Receipt(
-            merchantName: "Walmart",
+        let receipt = Receipt(
+            merchantName: "Sample Grocery Store",
             totalCents: 1247
         )
-        
+
         let milk = ReceiptItem(
             name: "Milk",
             unitPriceCents: 399,
@@ -79,15 +81,15 @@ struct ContentView: View {
             category: "Groceries",
             isLuxury: false
         )
-        
+
         let apples = ReceiptItem(
-                    name: "Apples",
-                    quantity: 2,
-                    unitPriceCents: 149,
-                    lineTotalCents: 298,
-                    category: "Groceries",
-                    isLuxury: false
-                )
+            name: "Apples",
+            quantity: 2,
+            unitPriceCents: 149,
+            lineTotalCents: 298,
+            category: "Groceries",
+            isLuxury: false
+        )
 
         let cookies = ReceiptItem(
             name: "Cookies",
@@ -96,24 +98,25 @@ struct ContentView: View {
             category: "Groceries",
             isLuxury: true
         )
-        
-        reciept.items = [milk, apples, cookies]
-        
-        modelContext.insert(reciept)
+
+        receipt.items = [milk, apples, cookies]
+
+        modelContext.insert(receipt)
         saveChanges()
     }
-    
-    private func deleteReceipts(at offsets: IndexSet){
-        let recieptsToDelete = offset.map { receipts[$0] }
-        
-        for receipt in receiptToDelete {
+
+    private func deleteReceipts(at offsets: IndexSet) {
+        let receiptsToDelete = offsets.map { receipts[$0] }
+
+        for receipt in receiptsToDelete {
             modelContext.delete(receipt)
         }
+
         saveChanges()
     }
-    
-    private func saveChanges(){
-        do{
+
+    private func saveChanges() {
+        do {
             try modelContext.save()
         } catch {
             modelContext.rollback()
@@ -121,4 +124,74 @@ struct ContentView: View {
             showingError = true
         }
     }
+}
+
+struct ReceiptDetailView: View {
+    let receipt: Receipt
+
+    var body: some View {
+        List {
+            Section("Purchase") {
+                LabeledContent("Store", value: receipt.merchantName)
+
+                LabeledContent("Total") {
+                    Text(
+                        dollars(receipt.totalCents),
+                        format: .currency(code: receipt.currencyCode)
+                    )
+                }
+            }
+
+            Section("Items") {
+                ForEach(
+                    receipt.items.sorted { $0.name < $1.name }
+                ) { item in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.name)
+                                .font(.headline)
+
+                            Text(
+                                "Quantity: \(item.quantity.description)"
+                            )
+
+                            Text(
+                                "\(item.category) • \(classification(for: item))"
+                            )
+                        }
+                        .font(.caption)
+
+                        Spacer()
+
+                        Text(
+                            dollars(item.lineTotalCents),
+                            format: .currency(code: receipt.currencyCode)
+                        )
+                    }
+                }
+            }
+        }
+        .navigationTitle("Receipt")
+    }
+
+    private func classification(for item: ReceiptItem) -> String {
+        guard let isLuxury = item.isLuxury else {
+            return "Unclassified"
+        }
+
+        return isLuxury ? "Want" : "Need"
+    }
+}
+
+// Convert stored cents to dollars only for display.
+private func dollars(_ cents: Int64) -> Decimal {
+    Decimal(cents) / Decimal(100)
+}
+
+#Preview {
+    ContentView()
+        .modelContainer(
+            for: [Receipt.self, ReceiptItem.self],
+            inMemory: true
+        )
 }

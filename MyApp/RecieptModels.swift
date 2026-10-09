@@ -5,7 +5,7 @@ import SwiftData
 final class Receipt {
     var id: UUID
     var merchantName: String
-    var purchaseData: Date
+    var purchaseDate: Date
     var currencyCode: String
     
     // Money is stored in cents: $12.50 = 1250
@@ -26,7 +26,7 @@ final class Receipt {
     ){
         self.id = UUID()
         self.merchantName = merchantName
-        self.purchaseData = purchareDate
+        self.purchaseDate = purchareDate
         self.currencyCode = currencyCode
         self.totalCents = totalCents
     }
