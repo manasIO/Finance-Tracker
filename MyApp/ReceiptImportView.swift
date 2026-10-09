@@ -7,6 +7,7 @@ struct ReceiptImportView: View {
     @State private var recognizedText = ""
     @State private var isProcessing = false
     @State private var errorMessage: String?
+    @State private var showingAIReview = false
 
     private let ocrService = ReceiptOCRService()
 
@@ -52,9 +53,22 @@ struct ReceiptImportView: View {
                         .font(.system(.body, design: .monospaced))
                         .textSelection(.enabled)
                 }
+            if #available(iOS 26.0, *) {
+                Section {
+                    Button("Prepare for on-device AI") {
+                        showingAIReview = true
+                    }
+                    .disabled(isProcessing)
+                }
+            }
             }
         }
         .navigationTitle("Import Receipt")
+        .sheet(isPresented: $showingAIReview) {
+            if #available(iOS 26.0, *) {
+                ReceiptAIReviewView(ocrText: recognizedText)
+            }
+        }
         .task(id: selectedPhoto) {
             guard let photo = selectedPhoto else {
                 return
