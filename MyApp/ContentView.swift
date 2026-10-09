@@ -16,6 +16,11 @@ struct ContentView: View {
         NavigationStack {
             List {
                 Section {
+                    NavigationLink{
+                        ReceiptImportView()
+                    } label: {
+                        Label("Import receipt photo", systemImage: "doc.text.viewfinder")
+                    }
                     Button {
                         showingAddReceipt = true
                     } label: {
