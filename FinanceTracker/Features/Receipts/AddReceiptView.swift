@@ -191,22 +191,22 @@ struct AddReceiptView: View {
                 )
             )
         }
-        
+
         print(
             "Container models:",
             modelContext.container.schema.entities.map { $0.name }
         )
 
         modelContext.insert(receipt)
-        
+
         print("Pending inserts:", modelContext.insertedModelsArray.count)
 
         let beforeSave = try? modelContext.fetch(
             FetchDescriptor<Receipt>()
         )
         print("Receipt count before save:", beforeSave?.count as Any)
-        
-        
+
+
         for item in savedItems {
             modelContext.insert(item)
             item.receipt = receipt
@@ -214,14 +214,14 @@ struct AddReceiptView: View {
 
         do {
             try modelContext.save()
-            
+
             let savedReceipts = try modelContext.fetch(
                 FetchDescriptor<Receipt>()
             )
 
             print("Saved receipt count:", savedReceipts.count)
             print("Saved merchants:", savedReceipts.map { $0.merchantName })
-            
+
             dismiss()
         } catch {
             modelContext.rollback()

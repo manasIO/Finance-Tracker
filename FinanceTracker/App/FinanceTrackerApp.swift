@@ -1,10 +1,10 @@
 import SwiftUI
 import SwiftData
 
-@main struct MyApp: App {
+@main struct FinanceTrackerApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            ReceiptListView()
         }
         .modelContainer(for: [
             Receipt.self,
