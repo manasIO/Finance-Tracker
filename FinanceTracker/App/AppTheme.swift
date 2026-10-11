@@ -47,6 +47,8 @@ final class WindowAppearanceView: UIView {
 }
 
 struct AppRootView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var showingSplash = ProcessInfo.processInfo.environment["FINANCE_TRACKER_TESTING"] != "1"
     @AppStorage("hasCompletedOnboarding") private var completedOnboarding = false
     @Query private var profiles: [UserProfile]
     @Query private var receipts: [Receipt]
@@ -60,11 +62,28 @@ struct AppRootView: View {
     @AppStorage("appTheme") private var theme: AppTheme = .system
 
     var body: some View {
-        Group {
-            if completedOnboarding || existingUser || ProcessInfo.processInfo.environment["FINANCE_TRACKER_TESTING"] == "1" {
-                mainTabs
+        ZStack {
+            if showingSplash {
+                LaunchSplashView()
+                    .transition(.opacity)
             } else {
-                OnboardingView { completedOnboarding = true }
+                Group {
+                    if completedOnboarding || existingUser || ProcessInfo.processInfo.environment["FINANCE_TRACKER_TESTING"] == "1" {
+                        mainTabs
+                    } else {
+                        OnboardingView { completedOnboarding = true }
+                    }
+                }
+                .transition(.opacity)
+            }
+        }
+        .task {
+            guard showingSplash else { return }
+            // Show once per launch, without delaying navigation on foregrounding.
+            do { try await Task.sleep(for: .milliseconds(reduceMotion ? 500 : 1200)) }
+            catch { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.25)) {
+                showingSplash = false
             }
         }
         .onAppear { if existingUser { completedOnboarding = true } }

@@ -122,7 +122,8 @@ when a test fails. Test failures are not automatically retried.
 - These are unit/integration tests, not UI automation. They do not automate Photos
   permissions, camera capture, picker gestures, navigation, or editing controls.
   Check import, camera permission/capture/cancel, review, save, and unavailable-AI
-  states interactively before release. Also check theme switching and persistence,
+  states interactively before release. Also check the launch animation on a fresh app launch, its Reduce Motion variant,
+  and that foregrounding does not replay it. Check theme switching and persistence,
   profile editing, budget editing, duplicate Cancel/Save anyway, and real on-device
   category/Need/Want/food suggestions, avatar selection grid, the grocery chart,
   the animated receipt-analysis screen (including Reduce Motion),
