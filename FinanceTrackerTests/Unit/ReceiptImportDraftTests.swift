@@ -50,13 +50,13 @@ final class ReceiptImportDraftTests: XCTestCase {
         draft.items[0].name = " "
         XCTAssertFalse(draft.canSave)
         draft.items = []
-        XCTAssertFalse(draft.canSave)
+        XCTAssertTrue(draft.canSave)
     }
 
-    func testInvalidOptionalAmountsBlockSaving() {
+    func testHiddenSummaryDoesNotBlockSavingButInvalidVisibleUnitPriceDoes() {
         var draft = ReceiptFixtures.draft()
         draft.subtotal = "$6.97"
-        XCTAssertFalse(draft.canSave)
+        XCTAssertTrue(draft.canSave)
         draft.subtotal = ""
         XCTAssertTrue(draft.canSave)
         draft.items[0].unitPrice = "three"
@@ -75,7 +75,7 @@ final class ReceiptImportDraftTests: XCTestCase {
         XCTAssertEqual(draft.taxCents, 0)
         draft.taxes = [.init(amount: "invalid")]
         XCTAssertNil(draft.taxCents)
-        XCTAssertFalse(draft.canSave)
+        XCTAssertTrue(draft.canSave)
     }
 
     func testReviewRetainsEvidenceAndExtractionWarnings() {

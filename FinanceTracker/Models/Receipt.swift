@@ -3,6 +3,11 @@ import SwiftData
 
 @Model
 final class Receipt {
+    var entryKind: String = "receipt"
+    var needsSplit: Bool = false
+    var splitResolvedAt: Date? = nil
+    var isQuickExpense: Bool { entryKind == "quickExpense" }
+
     var id: UUID
     var merchantName: String
     var purchaseDate: Date

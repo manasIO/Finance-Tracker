@@ -18,7 +18,8 @@ final class ReceiptPersistenceTests: XCTestCase {
         var draft = ReceiptFixtures.draft()
         draft.merchantName = "  Example Grocery  "
         draft.items[1].classification = "Want"
-        let receipt = try ReceiptImportStore.save(draft, confirmedReview: false, in: store.mainContext)
+        draft.items[0].foodChoice = "Healthier staples"
+        let receipt = try ReceiptImportStore.save(draft, in: store.mainContext)
         let saved = try store.mainContext.fetch(FetchDescriptor<Receipt>())
         XCTAssertEqual(saved.count, 1)
         XCTAssertEqual(receipt.merchantName, "Example Grocery")
@@ -37,6 +38,7 @@ final class ReceiptPersistenceTests: XCTestCase {
         let milk = try XCTUnwrap(receipt.items.first { $0.name == "Milk" })
         XCTAssertNil(milk.unitPriceCents)
         XCTAssertEqual(milk.category, "Groceries")
+        XCTAssertEqual(milk.foodChoice, "Healthier staples")
         XCTAssertEqual(milk.isLuxury, false)
     }
 
@@ -44,29 +46,26 @@ final class ReceiptPersistenceTests: XCTestCase {
         let store = try container()
         var draft = ReceiptFixtures.draft()
         draft.items[1].lineTotal = ""
-        XCTAssertThrowsError(try ReceiptImportStore.save(draft, confirmedReview: true, in: store.mainContext))
+        XCTAssertThrowsError(try ReceiptImportStore.save(draft, in: store.mainContext))
         XCTAssertEqual(try store.mainContext.fetchCount(FetchDescriptor<Receipt>()), 0)
         XCTAssertEqual(try store.mainContext.fetchCount(FetchDescriptor<ReceiptItem>()), 0)
     }
 
-    func testWarningsRequireConfirmationBeforeSaving() throws {
+    func testSummaryMismatchDoesNotBlockSavingEditedTotal() throws {
         let store = try container()
         var draft = ReceiptFixtures.draft()
         draft.total = "8.00"
-        XCTAssertThrowsError(try ReceiptImportStore.save(draft, confirmedReview: false, in: store.mainContext))
-        XCTAssertEqual(try store.mainContext.fetchCount(FetchDescriptor<Receipt>()), 0)
-        let receipt = try ReceiptImportStore.save(draft, confirmedReview: true, in: store.mainContext)
+        let receipt = try ReceiptImportStore.save(draft, in: store.mainContext)
         XCTAssertEqual(receipt.totalCents, 800)
     }
 
-    func testExtractionWarningsAlsoRequireConfirmation() throws {
+    func testExtractionWarningsDoNotBlockSaving() throws {
         let store = try container()
         var extraction = ReceiptFixtures.extraction()
         extraction.warnings = ["Price association needs checking"]
         let draft = ReceiptImportDraft(extraction: extraction)
         XCTAssertFalse(draft.report.needsReview)
-        XCTAssertThrowsError(try ReceiptImportStore.save(draft, confirmedReview: false, in: store.mainContext))
-        _ = try ReceiptImportStore.save(draft, confirmedReview: true, in: store.mainContext)
+        _ = try ReceiptImportStore.save(draft, in: store.mainContext)
         XCTAssertEqual(try store.mainContext.fetchCount(FetchDescriptor<Receipt>()), 1)
     }
 
@@ -76,16 +75,36 @@ final class ReceiptPersistenceTests: XCTestCase {
         draft.taxes = []
         draft.subtotal = ""
         draft.items[0].classification = "Unclassified"
-        let receipt = try ReceiptImportStore.save(draft, confirmedReview: true, in: store.mainContext)
+        let receipt = try ReceiptImportStore.save(draft, in: store.mainContext)
         XCTAssertNil(receipt.taxCents)
         XCTAssertNil(receipt.subtotalCents)
         XCTAssertNil(receipt.items.first { $0.name == "Milk" }?.isLuxury)
     }
 
+    func testHiddenInvalidSummaryFieldsDoNotBlockSaving() throws {
+        let store = try container()
+        var draft = ReceiptFixtures.draft()
+        draft.subtotal = "invalid"
+        draft.taxes = [.init(amount: "6%")]
+        let receipt = try ReceiptImportStore.save(draft, in: store.mainContext)
+        XCTAssertEqual(receipt.totalCents, 727)
+        XCTAssertNil(receipt.subtotalCents)
+        XCTAssertNil(receipt.taxCents)
+    }
+
+    func testReceiptSummaryCanSaveWithoutExtractedItems() throws {
+        let store = try container()
+        var draft = ReceiptFixtures.draft()
+        draft.items = []
+        let receipt = try ReceiptImportStore.save(draft, in: store.mainContext)
+        XCTAssertEqual(receipt.totalCents, 727)
+        XCTAssertTrue(receipt.items.isEmpty)
+    }
+
     func testDeletingReceiptCascadesOnlyItsOwnItems() throws {
         let store = try container()
-        let first = try ReceiptImportStore.save(ReceiptFixtures.draft(), confirmedReview: false, in: store.mainContext)
-        _ = try ReceiptImportStore.save(ReceiptFixtures.draft(), confirmedReview: false, in: store.mainContext)
+        let first = try ReceiptImportStore.save(ReceiptFixtures.draft(), in: store.mainContext)
+        _ = try ReceiptImportStore.save(ReceiptFixtures.draft(), in: store.mainContext, allowDuplicate: true)
         store.mainContext.delete(first)
         try store.mainContext.save()
         XCTAssertEqual(try store.mainContext.fetchCount(FetchDescriptor<Receipt>()), 1)
@@ -100,7 +119,7 @@ final class ReceiptPersistenceTests: XCTestCase {
         var receiptID: UUID?
         do {
             let original = try container(url: url)
-            receiptID = try ReceiptImportStore.save(ReceiptFixtures.draft(), confirmedReview: false, in: original.mainContext).id
+            receiptID = try ReceiptImportStore.save(ReceiptFixtures.draft(), in: original.mainContext).id
         }
         let reopened = try container(url: url)
         let saved = try XCTUnwrap(reopened.mainContext.fetch(FetchDescriptor<Receipt>()).first)
@@ -120,7 +139,7 @@ final class ReceiptPersistenceTests: XCTestCase {
         draft.merchantName = "Corrected Grocery"
         draft.items[0].name = "Whole Milk"
         let store = try container()
-        let receipt = try ReceiptImportStore.save(draft, confirmedReview: false, in: store.mainContext)
+        let receipt = try ReceiptImportStore.save(draft, in: store.mainContext)
         XCTAssertEqual(receipt.merchantName, "Corrected Grocery")
         XCTAssertTrue(receipt.items.contains { $0.name == "Whole Milk" })
         XCTAssertEqual(try store.mainContext.fetchCount(FetchDescriptor<ReceiptItem>()), 2)

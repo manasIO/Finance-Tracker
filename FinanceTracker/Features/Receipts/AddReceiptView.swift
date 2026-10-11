@@ -2,35 +2,26 @@ import Foundation
 import SwiftUI
 import SwiftData
 
-// Temporary form data—not a saved SwiftData model.
-private struct ItemDraft: Identifiable {
-    let id = UUID()
-    var name = ""
-    var amount = ""
-    var category = "Groceries"
-    var classification = "Unclassified"
-}
-
 struct AddReceiptView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
 
+    @State private var needsSplit = false
     @State private var merchantName = ""
     @State private var purchaseDate = Date()
-    @State private var items = [ItemDraft()]
+    @State private var items = [ManualReceiptItemDraft()]
 
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var duplicateMessage: String?
 
-    private let categories = [
-        "Groceries", "Dining", "Household",
-        "Transport", "Health", "Entertainment", "Other"
-    ]
+    private let categories = ItemCategory.allCases.map(\.rawValue)
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Receipt") {
+                    Toggle("Needs splitting", isOn: $needsSplit)
                     TextField("Store name", text: $merchantName)
 
                     DatePicker(
@@ -44,6 +35,7 @@ struct AddReceiptView: View {
                     ForEach($items) { $item in
                         VStack(alignment: .leading, spacing: 12) {
                             TextField("Item name", text: $item.name)
+                                .onChange(of: item.name) { _, _ in item.nameChanged() }
 
                             TextField(
                                 "Line total in USD, e.g. 3.99",
@@ -51,7 +43,10 @@ struct AddReceiptView: View {
                             )
                             .keyboardType(.decimalPad)
 
-                            Picker("Category", selection: $item.category) {
+                            Picker("Category", selection: Binding(
+                                get: { item.category },
+                                set: { item.category = $0; item.categoryEdited = true }
+                            )) {
                                 ForEach(categories, id: \.self) { category in
                                     Text(category).tag(category)
                                 }
@@ -59,11 +54,22 @@ struct AddReceiptView: View {
 
                             Picker(
                                 "Classification",
-                                selection: $item.classification
+                                selection: Binding(
+                                    get: { item.classification },
+                                    set: { item.classification = $0; item.classificationEdited = true }
+                                )
                             ) {
                                 Text("Unclassified").tag("Unclassified")
                                 Text("Need").tag("Need")
                                 Text("Want").tag("Want")
+                            }
+                            if item.category == "Groceries" {
+                                Picker("Food spending", selection: Binding(
+                                    get: { item.foodChoice },
+                                    set: { item.foodChoice = $0; item.foodChoiceEdited = true }
+                                )) {
+                                    ForEach(FoodChoice.allCases, id: \.self) { Text($0.label).tag($0.rawValue) }
+                                }
                             }
                         }
                         .padding(.vertical, 6)
@@ -73,7 +79,7 @@ struct AddReceiptView: View {
                     }
 
                     Button {
-                        items.append(ItemDraft())
+                        items.append(ManualReceiptItemDraft())
                     } label: {
                         Label("Add another item", systemImage: "plus")
                     }
@@ -83,7 +89,7 @@ struct AddReceiptView: View {
                     Text(
                         "Enter each line's total, not its unit price. "
                         + "Use a decimal point, without $ or commas. "
-                        + "Tax and discounts will come in a later step."
+                        + "Categories and Need/Want labels are editable suggestions."
                     )
                 }
 
@@ -100,6 +106,8 @@ struct AddReceiptView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color("AppBackground"))
             .navigationTitle("New Receipt")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -114,6 +122,30 @@ struct AddReceiptView: View {
                     }
                     .disabled(!canSave)
                 }
+            }
+            .task(id: items.map(\.name)) {
+                // Debounce typing; only apply suggestions to fields still untouched.
+                do {
+                    try await Task.sleep(for: .milliseconds(700))
+                    for snapshot in items where !snapshot.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        guard snapshot.suggestedName != snapshot.name, !snapshot.categoryEdited || !snapshot.classificationEdited || !snapshot.foodChoiceEdited else { continue }
+                        let result = try await ItemAnalysisService().analyze(name: snapshot.name)
+                        try Task.checkCancellation()
+                        guard let index = items.firstIndex(where: { $0.id == snapshot.id && $0.name == snapshot.name }) else { continue }
+                        items[index].apply(result, for: snapshot.name)
+                    }
+                } catch {
+                    // Manual entry remains available when on-device AI is unavailable.
+                }
+            }
+            .alert("Possible duplicate", isPresented: Binding(
+                get: { duplicateMessage != nil },
+                set: { if !$0 { duplicateMessage = nil } }
+            )) {
+                Button("Cancel", role: .cancel) { duplicateMessage = nil }
+                Button("Save anyway") { duplicateMessage = nil; saveReceipt(allowDuplicate: true) }
+            } message: {
+                Text(duplicateMessage ?? "")
             }
             .interactiveDismissDisabled()
             .alert("Couldn't save receipt", isPresented: $showingError) {
@@ -150,7 +182,7 @@ struct AddReceiptView: View {
         }
     }
 
-    private func saveReceipt() {
+    private func saveReceipt(allowDuplicate: Bool = false) {
         guard canSave, let total = calculatedTotalCents else {
             return
         }
@@ -190,41 +222,17 @@ struct AddReceiptView: View {
                     isLuxury: isLuxury
                 )
             )
+            savedItems[savedItems.count - 1].foodChoice = draft.foodChoice
         }
 
-        print(
-            "Container models:",
-            modelContext.container.schema.entities.map { $0.name }
-        )
-
-        modelContext.insert(receipt)
-
-        print("Pending inserts:", modelContext.insertedModelsArray.count)
-
-        let beforeSave = try? modelContext.fetch(
-            FetchDescriptor<Receipt>()
-        )
-        print("Receipt count before save:", beforeSave?.count as Any)
-
-
-        for item in savedItems {
-            modelContext.insert(item)
-            item.receipt = receipt
-        }
-
+        receipt.needsSplit = needsSplit
+        receipt.items = savedItems
         do {
-            try modelContext.save()
-
-            let savedReceipts = try modelContext.fetch(
-                FetchDescriptor<Receipt>()
-            )
-
-            print("Saved receipt count:", savedReceipts.count)
-            print("Saved merchants:", savedReceipts.map { $0.merchantName })
-
+            try ReceiptStore.save(receipt, in: modelContext, allowDuplicate: allowDuplicate)
             dismiss()
+        } catch let error as ReceiptStore.SaveError {
+            duplicateMessage = error.localizedDescription
         } catch {
-            modelContext.rollback()
             errorMessage = error.localizedDescription
             showingError = true
         }

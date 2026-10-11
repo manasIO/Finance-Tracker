@@ -57,6 +57,15 @@ struct ReceiptAIService {
             - A value with lb or kg is a weight, not a monetary unit price.
             - Preserve printed item descriptions without expanding abbreviations.
 
+            Category and classification suggestions:
+            - Suggest each item's category from its description, not the merchant alone.
+            - Need means basic essentials; Want means discretionary purchases.
+            - Treat these as editable suggestions, not personal financial advice.
+            - For unclear abbreviations use Uncategorized and Unclassified.
+
+            Grocery food suggestions:
+            \(FoodChoice.guidance)
+
             Amounts:
             - A number followed by % is a tax RATE, not a tax amount.
             - taxAmounts contains only monetary tax amounts.

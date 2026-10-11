@@ -39,4 +39,13 @@ struct ExtractedReceiptItem {
     @Guide(description: "Explicit unit price in decimal dollars; nil if absent.")
     var unitPrice: String?
 
+    @Guide(description: "Suggested spending category based on item description. Use Uncategorized for ambiguous abbreviations. Food for home is Groceries; restaurant meals are Dining.")
+    var category: ItemCategory? = nil
+
+    @Guide(description: "Suggested Need for basic essentials, Want for discretionary purchases. Use Unclassified when the description is ambiguous. Do not infer personal circumstances.")
+    var classification: SpendingKind? = nil
+
+    @Guide(description: "Editable grocery spending suggestion: Healthier staples for clearly described plain milk, eggs, produce and unprocessed chicken; Treats for clearly described ice cream, candy, desserts and soda. Unclassified for ambiguous descriptions, mixed foods or non-groceries. Do not infer ingredients, preparation or nutrition facts.")
+    var foodChoice: FoodChoice? = nil
+
 }

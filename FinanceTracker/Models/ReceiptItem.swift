@@ -14,6 +14,8 @@ final class ReceiptItem{
     var unitPriceCents: Int64?
     var lineTotalCents: Int64
 
+    var foodChoice: String? = nil
+
     var category: String
 
     // nil = unclassifies, false = need, true = want

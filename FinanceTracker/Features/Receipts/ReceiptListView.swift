@@ -8,45 +8,71 @@ struct ReceiptListView: View {
     @Query(sort: \Receipt.purchaseDate, order: .reverse)
     private var receipts: [Receipt]
 
+    @State private var searchText = ""
+
+    private var visibleReceipts: [Receipt] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return query.isEmpty ? receipts : receipts.filter { $0.merchantName.localizedCaseInsensitiveContains(query) }
+    }
+
     @State private var showingError = false
     @State private var errorMessage = ""
+    @State private var showingQuickExpense = false
     @State private var showingAddReceipt = false
 
     var body: some View {
         NavigationStack {
             List {
+                OnDeviceAIStatusView()
+
                 Section {
+                    Button { showingQuickExpense = true } label: {
+                        receiptAction("Quick expense", detail: "Just an amount — no receipt needed", icon: "plus.circle.fill")
+                    }
+                }
+
+                Section("Add a receipt") {
                     NavigationLink{
                         ReceiptImportView()
                     } label: {
-                        Label("Import receipt photo", systemImage: "doc.text.viewfinder")
+                        receiptAction("Import photo", detail: "Choose a receipt from your photos", icon: "photo")
+                    }
+                    NavigationLink {
+                        ReceiptImportView(source: .camera)
+                    } label: {
+                        receiptAction("Take photo", detail: "Scan a receipt with your camera", icon: "camera")
                     }
                     Button {
                         showingAddReceipt = true
                     } label: {
-                        Label("Add receipt", systemImage: "plus.circle")
-                    }
-                    Button {
-                        addSampleReceipt()
-                    } label: {
-                        Label("Add sample receipt", systemImage: "plus")
+                        receiptAction("Enter manually", detail: "Add a purchase without a photo", icon: "square.and.pencil")
                     }
                 }
 
-                Section("Saved receipts") {
+                Section {
                     if receipts.isEmpty {
-                        Text("No receipts yet. Add a sample to get started.")
+                        Text("No purchases yet. Add a quick expense or import a receipt to get started.")
                             .foregroundStyle(.secondary)
                     }
 
-                    ForEach(receipts) { receipt in
+                    if !receipts.isEmpty && visibleReceipts.isEmpty {
+                        Text("No purchases match your search.").foregroundStyle(.secondary)
+                    }
+
+                    ForEach(visibleReceipts) { receipt in
                         NavigationLink {
                             ReceiptDetailView(receipt: receipt)
                         } label: {
                             HStack {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(receipt.merchantName)
-                                        .font(.headline)
+                                    HStack {
+                                        Text(receipt.merchantName).font(.headline)
+                                        if receipt.needsSplit {
+                                            Image(systemName: "person.2.fill").foregroundStyle(Color.accentColor)
+                                                .accessibilityLabel("Needs splitting")
+                                        }
+                                    }
+                                    if receipt.isQuickExpense { Text("Quick expense").font(.caption).foregroundStyle(.secondary) }
 
                                     Text(
                                         receipt.purchaseDate,
@@ -68,9 +94,16 @@ struct ReceiptListView: View {
                         }
                     }
                     .onDelete(perform: deleteReceipts)
+                } header: { Text("Saved purchases") }
+                footer: {
+                    if !receipts.isEmpty { Text("Open a receipt to delete it, or swipe left on a row.") }
                 }
             }
-            .navigationTitle("Finance Tracker")
+            .scrollContentBackground(.hidden)
+            .background(Color("AppBackground"))
+            .navigationTitle("Receipts")
+            .searchable(text: $searchText, prompt: "Search by store or description")
+            .sheet(isPresented: $showingQuickExpense) { QuickExpenseView() }
             .sheet(isPresented: $showingAddReceipt){
                     AddReceiptView()
                     .modelContainer(modelContext.container)
@@ -83,45 +116,23 @@ struct ReceiptListView: View {
         }
     }
 
-    private func addSampleReceipt() {
-        let receipt = Receipt(
-            merchantName: "Sample Grocery Store",
-            totalCents: 1247
-        )
-
-        let milk = ReceiptItem(
-            name: "Milk",
-            unitPriceCents: 399,
-            lineTotalCents: 399,
-            category: "Groceries",
-            isLuxury: false
-        )
-
-        let apples = ReceiptItem(
-            name: "Apples",
-            quantity: 2,
-            unitPriceCents: 149,
-            lineTotalCents: 298,
-            category: "Groceries",
-            isLuxury: false
-        )
-
-        let cookies = ReceiptItem(
-            name: "Cookies",
-            unitPriceCents: 550,
-            lineTotalCents: 550,
-            category: "Groceries",
-            isLuxury: true
-        )
-
-        receipt.items = [milk, apples, cookies]
-
-        modelContext.insert(receipt)
-        saveChanges()
+    private func receiptAction(_ title: String, detail: String, icon: String) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: icon)
+                .font(.title3)
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 40, height: 40)
+                .background(Color("SummaryBackground"), in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title).font(.headline).foregroundStyle(.primary)
+                Text(detail).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 4)
     }
 
     private func deleteReceipts(at offsets: IndexSet) {
-        let receiptsToDelete = offsets.map { receipts[$0] }
+        let receiptsToDelete = offsets.map { visibleReceipts[$0] }
 
         for receipt in receiptsToDelete {
             modelContext.delete(receipt)

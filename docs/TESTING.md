@@ -97,18 +97,41 @@ when a test fails. Test failures are not automatically retried.
 
 - Unit: integer-cent parsing, invalid money formats, totals, missing fields,
   zero versus unknown tax, weighted quantities, draft correction, redaction,
-  OCR row ordering, and item/price alignment.
+  OCR row ordering, item/price alignment, monthly spending totals, equal-period
+  comparisons, leap years, daylight saving, future dates, currency separation,
+  camera image encoding, resizing, and orientation; category reconciliation,
+  suggestions that preserve manual overrides and reject stale item names;
+  grocery spending percentages with unknown items; Light/Dark/System window transitions;
+  daily/monthly recurrence, shorter months, paid snapshots, and budget reservations
+  before and after payment.
 - Integration: real Apple Vision on a synthetic receipt image, invalid/blank
   images, OCR cancellation, OCR-to-AI handoff and error propagation, cancellation
-  before/after AI, review-and-save, warnings requiring confirmation, disk reload,
-  relationships, cascade deletion, and migration from the original receipt schema.
+  before/after AI, review-and-save, saving despite extraction warnings, hidden summary errors, disk reload,
+  relationships, cascade deletion, migration from the original receipt schema,
+  dashboard totals after saving, changing a purchase date, and deleting receipts;
+  duplicate warnings and explicit overrides; monthly budgets by currency;
+  profile/avatar persistence and optional onboarding fields; local storage backup exclusion;
+  recurring bill/payment persistence, idempotent payments, schedule removal preserving
+  history, upgrades to the recurring schema; quick expenses, anonymous and named
+  duplicate behavior, split flag/resolve/reopen without changing spending; saved-grocery analysis
+  preserving user overrides; and upgrading the store to include budgets and profiles.
 - Automated pipeline tests inject fixed AI responses. They verify orchestration
   and saving, not the accuracy of Apple's language model. Real Apple Intelligence
   extraction remains a device check with representative receipts, particularly
   faded photos, logo-only headers, taxes, discounts, and long receipts.
 - These are unit/integration tests, not UI automation. They do not automate Photos
-  permissions, picker gestures, navigation, or editing controls. Check import,
-  review, cancel, save, and unavailable-AI states interactively before release.
+  permissions, camera capture, picker gestures, navigation, or editing controls.
+  Check import, camera permission/capture/cancel, review, save, and unavailable-AI
+  states interactively before release. Also check theme switching and persistence,
+  profile editing, budget editing, duplicate Cancel/Save anyway, and real on-device
+  category/Need/Want/food suggestions, avatar selection grid, the grocery chart,
+  the animated receipt-analysis screen (including Reduce Motion),
+  the visible receipt-detail Delete button; fresh-install onboarding, Skip setup,
+  recurring bill create/edit/remove, month navigation, Paid/Unpaid actions;
+  Quick expense amount entry and optional fields; and split pending/history controls. Suggestion quality is not asserted
+  by fixed-data tests. Older groceries without food labels are analyzed locally;
+  existing labels are preserved. Privacy messaging describes local processing,
+  disabled cloud sync, and exclusion of the app storage directory from backups.
 
 Coverage is recorded rather than enforcing an arbitrary percentage. Add tests
 for each bug fixed and each new behavior; prioritize calculations, persistence,

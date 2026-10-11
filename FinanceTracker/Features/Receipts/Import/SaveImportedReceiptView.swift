@@ -5,19 +5,15 @@ import SwiftData
 struct SaveImportedReceiptView: View {
     @Environment(\.modelContext) private var modelContext
     @State private var draft: ReceiptImportDraft
-    @State private var confirmedReview = false
     @State private var saveError: String?
+    @State private var duplicateMessage: String?
     let onSaved: () -> Void
 
-    private let categories = ["Uncategorized", "Groceries", "Dining", "Household", "Transport", "Health", "Entertainment", "Other"]
+    private let categories = ItemCategory.allCases.map(\.rawValue)
 
     init(extraction: ReceiptExtraction, onSaved: @escaping () -> Void) {
         _draft = State(initialValue: ReceiptImportDraft(extraction: extraction))
         self.onSaved = onSaved
-    }
-
-    private var needsConfirmation: Bool {
-        draft.report.needsReview || !draft.extractionWarnings.isEmpty
     }
 
     var body: some View {
@@ -25,27 +21,12 @@ struct SaveImportedReceiptView: View {
             Section {
                 TextField("Store name", text: $draft.merchantName)
                 DatePicker("Purchase date", selection: $draft.purchaseDate, displayedComponents: .date)
+                amountField("Total paid", text: $draft.total)
+                Toggle("Needs splitting", isOn: $draft.needsSplit)
             } header: {
                 Text("Purchase")
             } footer: {
                 Text("Set the purchase date from your receipt; it starts at today. All amounts are in USD.")
-            }
-
-            Section("Receipt amounts") {
-                amountField("Subtotal (optional)", text: $draft.subtotal)
-                amountField("Total paid", text: $draft.total)
-            }
-
-            Section {
-                ForEach($draft.taxes) { $tax in
-                    amountField("Tax amount", text: $tax.amount)
-                }
-                .onDelete { draft.taxes.remove(atOffsets: $0) }
-                Button("Add tax amount") { draft.taxes.append(.init()) }
-            } header: {
-                Text("Taxes")
-            } footer: {
-                Text("Enter 0.00 to confirm zero tax. No tax entries means the tax amount is unknown.")
             }
 
             Section {
@@ -70,6 +51,11 @@ struct SaveImportedReceiptView: View {
                             Text("Need").tag("Need")
                             Text("Want").tag("Want")
                         }
+                        if item.category == "Groceries" {
+                            Picker("Food spending", selection: $item.foodChoice) {
+                                ForEach(FoodChoice.allCases, id: \.self) { Text($0.label).tag($0.rawValue) }
+                            }
+                        }
                     }
                     .padding(.vertical, 6)
                 }
@@ -78,41 +64,36 @@ struct SaveImportedReceiptView: View {
             } header: {
                 Text("Items")
             } footer: {
-                Text("Quantity starts at 1 when none was extracted. Confirm quantities and units against the receipt. Enter prices without $ or commas.")
+                Text("Categories and Need/Want labels are suggestions. Change any that don’t fit your purchase. Quantity starts at 1 when missing.")
             }
 
-            Section("Review checks") {
-                let report = draft.report
-                ForEach(report.messages.indices, id: \.self) { index in
-                    Text(report.messages[index]).font(.subheadline)
-                }
-                ForEach(draft.extractionWarnings.indices, id: \.self) { index in
-                    Text(draft.extractionWarnings[index]).font(.subheadline)
-                }
-                if !draft.canSave {
-                    Text("Enter a store, total, and at least one named item with a valid line total and positive quantity. Correct any invalid subtotal, tax, or unit price.")
-                        .foregroundStyle(.red)
-                }
-                if needsConfirmation {
-                    Toggle("I checked these fields against the receipt", isOn: $confirmedReview)
-                }
-            }
-
-            if let saveError {
-                Section("Couldn't save receipt") {
-                    Text(saveError).foregroundStyle(.red)
-                }
-            }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color("AppBackground"))
         .navigationTitle("Review Receipt")
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") { saveReceipt() }
-                    .disabled(!draft.canSave || (needsConfirmation && !confirmedReview))
             }
         }
+        .alert("Couldn't save receipt", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) { saveError = nil }
+        } message: {
+            Text(saveError ?? "")
+        }
+        .alert("Possible duplicate", isPresented: Binding(
+            get: { duplicateMessage != nil },
+            set: { if !$0 { duplicateMessage = nil } }
+        )) {
+            Button("Cancel", role: .cancel) { duplicateMessage = nil }
+            Button("Save anyway") { duplicateMessage = nil; saveReceipt(allowDuplicate: true) }
+        } message: {
+            Text(duplicateMessage ?? "")
+        }
         .onChange(of: draft) { _, _ in
-            confirmedReview = false
             saveError = nil
         }
     }
@@ -126,10 +107,12 @@ struct SaveImportedReceiptView: View {
         }
     }
 
-    private func saveReceipt() {
+    private func saveReceipt(allowDuplicate: Bool = false) {
         do {
-            _ = try ReceiptImportStore.save(draft, confirmedReview: confirmedReview, in: modelContext)
+            _ = try ReceiptImportStore.save(draft, in: modelContext, allowDuplicate: allowDuplicate)
             onSaved()
+        } catch let error as ReceiptStore.SaveError {
+            duplicateMessage = error.localizedDescription
         } catch {
             saveError = error.localizedDescription
         }

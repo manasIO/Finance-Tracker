@@ -4,12 +4,12 @@ import SwiftData
 @available(iOS 26.0, *)
 @MainActor
 enum ReceiptImportStore {
-    static func save(_ draft: ReceiptImportDraft, confirmedReview: Bool, in context: ModelContext) throws -> Receipt {
-        guard draft.canSave, let total = ReceiptValidator.cents(from: draft.total) else {
-            throw SaveError.invalidFields
+    static func save(_ draft: ReceiptImportDraft, in context: ModelContext, allowDuplicate: Bool = false) throws -> Receipt {
+        if let message = draft.validationMessage {
+            throw SaveError.invalidFields(message)
         }
-        guard !(draft.report.needsReview || !draft.extractionWarnings.isEmpty) || confirmedReview else {
-            throw SaveError.reviewRequired
+        guard let total = ReceiptValidator.cents(from: draft.total) else {
+            throw SaveError.invalidFields("Enter a valid total paid.")
         }
 
         let receipt = Receipt(
@@ -17,6 +17,7 @@ enum ReceiptImportStore {
             purchaseDate: draft.purchaseDate,
             totalCents: total
         )
+        receipt.needsSplit = draft.needsSplit
         receipt.subtotalCents = ReceiptValidator.cents(from: draft.subtotal)
         receipt.taxCents = draft.taxCents
 
@@ -24,7 +25,7 @@ enum ReceiptImportStore {
         for item in draft.items {
             guard let lineTotal = ReceiptValidator.cents(from: item.lineTotal),
                   let quantity = ReceiptImportDraft.quantity(from: item.quantity) else {
-                throw SaveError.invalidFields
+                throw SaveError.invalidFields("Correct the item's line total and quantity.")
             }
             let savedItem = ReceiptItem(
                 name: item.name.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -34,27 +35,21 @@ enum ReceiptImportStore {
                 category: item.category,
                 isLuxury: item.classification == "Unclassified" ? nil : item.classification == "Want"
             )
+            savedItem.foodChoice = item.foodChoice
             let unit = item.quantityUnit.trimmingCharacters(in: .whitespacesAndNewlines)
             savedItem.quantityUnit = unit.isEmpty ? nil : unit
             receipt.items.append(savedItem)
         }
 
-        context.insert(receipt)
-        do {
-            try context.save()
-            return receipt
-        } catch {
-            context.rollback()
-            throw error
-        }
+        try ReceiptStore.save(receipt, in: context, allowDuplicate: allowDuplicate)
+        return receipt
     }
 
     enum SaveError: LocalizedError {
-        case invalidFields, reviewRequired
+        case invalidFields(String)
         var errorDescription: String? {
             switch self {
-            case .invalidFields: "Correct the required receipt fields before saving."
-            case .reviewRequired: "Review the flagged fields before saving."
+            case .invalidFields(let message): message
             }
         }
     }

@@ -39,11 +39,11 @@ if [[ "$destination" == platform=iOS\ Simulator,* ]]; then
     options+=(CODE_SIGNING_ALLOWED=NO)
 fi
 if [[ "$suite" == unit ]]; then
-    for name in ReceiptValidatorTests ReceiptImportDraftTests ReceiptRedactorTests ReceiptOCRLayoutTests; do
+    for name in ReceiptValidatorTests ReceiptImportDraftTests ReceiptRedactorTests ReceiptOCRLayoutTests SpendingSummaryTests ReceiptPhotoEncoderTests; do
         options+=("-only-testing:FinanceTrackerTests/$name")
     done
 elif [[ "$suite" == integration ]]; then
-    for name in ReceiptImportServiceTests ReceiptOCRServiceTests ReceiptPersistenceTests ReceiptMigrationTests; do
+    for name in ReceiptImportServiceTests ReceiptOCRServiceTests ReceiptPersistenceTests ReceiptMigrationTests DashboardPersistenceTests; do
         options+=("-only-testing:FinanceTrackerTests/$name")
     done
 fi

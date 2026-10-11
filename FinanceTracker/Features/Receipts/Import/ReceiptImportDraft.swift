@@ -11,6 +11,7 @@ struct ReceiptImportDraft: Equatable {
         var lineTotal = ""
         var category = "Uncategorized"
         var classification = "Unclassified"
+        var foodChoice = FoodChoice.unclassified.rawValue
     }
 
     struct Tax: Identifiable, Equatable {
@@ -18,6 +19,7 @@ struct ReceiptImportDraft: Equatable {
         var amount = ""
     }
 
+    var needsSplit = false
     var merchantName: String
     var purchaseDate = Date()
     var subtotal: String
@@ -37,6 +39,9 @@ struct ReceiptImportDraft: Equatable {
         items = extraction.items.map { extracted in
             var item = Item()
             item.name = extracted.name
+            item.foodChoice = extracted.foodChoice?.rawValue ?? FoodChoice.unclassified.rawValue
+            item.category = extracted.category?.rawValue ?? "Uncategorized"
+            item.classification = extracted.classification?.rawValue ?? "Unclassified"
             item.unitPrice = extracted.unitPrice ?? ""
             item.lineTotal = extracted.lineTotal ?? ""
             if let quantity = extracted.quantity, !quantity.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -71,19 +76,34 @@ struct ReceiptImportDraft: Equatable {
 
     var report: ReceiptValidator.Report { ReceiptValidator.validate(extraction) }
 
-    var canSave: Bool {
+    var canSave: Bool { validationMessage == nil }
+
+    // Save remains available; report an actionable error only when it is tapped.
+    var validationMessage: String? {
         let name = merchantName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return !name.isEmpty && !["unknown", "not shown"].contains(name)
-            && ReceiptValidator.cents(from: total) != nil
-            && (subtotal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ReceiptValidator.cents(from: subtotal) != nil)
-            && (taxes.isEmpty || taxCents != nil)
-            && !items.isEmpty
-            && items.allSatisfy {
-                !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                    && ReceiptValidator.cents(from: $0.lineTotal) != nil
-                    && Self.quantity(from: $0.quantity) != nil
-                    && ($0.unitPrice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || ReceiptValidator.cents(from: $0.unitPrice) != nil)
+        guard !name.isEmpty && !["unknown", "not shown"].contains(name) else {
+            return "Enter the store name."
+        }
+        guard ReceiptValidator.cents(from: total) != nil else {
+            return "Enter a valid total paid, such as 12.50."
+        }
+        for (index, item) in items.enumerated() {
+            let number = index + 1
+            guard !item.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return "Enter a name for item \(number), or remove it."
             }
+            guard ReceiptValidator.cents(from: item.lineTotal) != nil else {
+                return "Enter a valid line total for item \(number), such as 3.99."
+            }
+            guard Self.quantity(from: item.quantity) != nil else {
+                return "Enter a positive quantity for item \(number)."
+            }
+            guard item.unitPrice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                    || ReceiptValidator.cents(from: item.unitPrice) != nil else {
+                return "Correct or clear the optional unit price for item \(number)."
+            }
+        }
+        return nil
     }
 
     // Unknown tax is valid to store as nil. Invalid entered tax is not.

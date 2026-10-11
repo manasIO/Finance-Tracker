@@ -1,8 +1,17 @@
 import SwiftUI
 import PhotosUI
+import AVFoundation
 
 @available(iOS 26.0, *)
 struct ReceiptImportView: View {
+    enum Source { case photoLibrary, camera }
+    var source: Source = .photoLibrary
+
+    private struct CapturedPhoto {
+        let id = UUID()
+        let data: Data
+    }
+
     private struct ImportedReceipt: Identifiable {
         let id = UUID()
         let extraction: ReceiptExtraction
@@ -15,6 +24,11 @@ struct ReceiptImportView: View {
     @State private var progressMessage = ""
     @State private var errorMessage: String?
     @State private var didSave = false
+    @State private var showingCamera = false
+    @State private var didOpenCamera = false
+    @State private var cameraAccessDenied = false
+    @State private var pendingPhoto: CapturedPhoto?
+    @State private var capturedPhoto: CapturedPhoto?
     #if DEBUG
     @State private var recognizedText = ""
     #endif
@@ -23,17 +37,23 @@ struct ReceiptImportView: View {
 
     var body: some View {
         List {
-            OnDeviceAIStatusView()
-
             Section {
-                PhotosPicker(selection: $selectedPhoto, matching: .images) {
-                    Label("Choose receipt photo", systemImage: "photo")
-                }
-                .disabled(isProcessing)
-
                 if isProcessing {
-                    ProgressView(progressMessage)
+                    ReceiptAnalysisProgressView(stage: progressMessage)
+                } else if source == .camera {
+                    Button {
+                        Task { await openCamera() }
+                    } label: {
+                        Label("Take receipt photo", systemImage: "camera")
+                    }
+                    .disabled(isProcessing)
+                } else {
+                    PhotosPicker(selection: $selectedPhoto, matching: .images) {
+                        Label("Choose receipt photo", systemImage: "photo")
+                    }
+                    .disabled(isProcessing)
                 }
+
             } footer: {
                 Text("Your receipt is analyzed on your device. Review the details before saving.")
             }
@@ -44,6 +64,14 @@ struct ReceiptImportView: View {
                     Button("Try again") {
                         selectedPhoto = nil
                         errorMessage = nil
+                        if source == .camera { Task { await openCamera() } }
+                    }
+                    if cameraAccessDenied {
+                        Button("Open Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
                     }
                     NavigationLink("Enter receipt manually") {
                         AddReceiptView()
@@ -55,7 +83,7 @@ struct ReceiptImportView: View {
             // Raw OCR is available to developers, never in release builds.
             if !recognizedText.isEmpty {
                 Section {
-                    DisclosureGroup("Debug: recognized text") {
+                    DisclosureGroup("Extracted text from receipt") {
                         Text(recognizedText)
                             .font(.system(.caption, design: .monospaced))
                             .textSelection(.enabled)
@@ -64,7 +92,25 @@ struct ReceiptImportView: View {
             }
             #endif
         }
-        .navigationTitle("Import Receipt")
+        .scrollContentBackground(.hidden)
+        .background(Color("AppBackground"))
+        .navigationTitle(source == .camera ? "Take Receipt Photo" : "Import Receipt")
+        .fullScreenCover(isPresented: $showingCamera, onDismiss: {
+            // Wait for the camera to close before starting analysis and review.
+            capturedPhoto = pendingPhoto
+            pendingPhoto = nil
+        }) {
+            ReceiptCameraView(onCapture: { data in
+                pendingPhoto = CapturedPhoto(data: data)
+                showingCamera = false
+            }, onCancel: {
+                showingCamera = false
+            }, onError: { message in
+                errorMessage = message
+                showingCamera = false
+            })
+            .ignoresSafeArea()
+        }
         .sheet(item: $importedReceipt, onDismiss: {
             // Close the import screen only after the review sheet has closed.
             if didSave { dismiss() }
@@ -81,14 +127,48 @@ struct ReceiptImportView: View {
                 }
             }
         }
+        .task {
+            if source == .camera && !didOpenCamera {
+                didOpenCamera = true
+                await openCamera()
+            }
+        }
+        .task(id: capturedPhoto?.id) {
+            guard let photo = capturedPhoto else { return }
+            await importReceipt(loadData: { photo.data })
+        }
         .task(id: selectedPhoto) {
             guard let photo = selectedPhoto else { return }
-            await importReceipt(from: photo)
+            await importReceipt(loadData: { try await photo.loadTransferable(type: Data.self) })
         }
     }
 
     @MainActor
-    private func importReceipt(from photo: PhotosPickerItem) async {
+    private func openCamera() async {
+        errorMessage = nil
+        cameraAccessDenied = false
+        guard UIImagePickerController.isSourceTypeAvailable(.camera) else {
+            errorMessage = "This device has no available camera. Import a photo or enter the receipt manually."
+            return
+        }
+        let allowed: Bool
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized: allowed = true
+        case .notDetermined: allowed = await AVCaptureDevice.requestAccess(for: .video)
+        default: allowed = false
+        }
+        guard !Task.isCancelled else { return }
+        if allowed {
+            pendingPhoto = nil
+            showingCamera = true
+        } else {
+            cameraAccessDenied = true
+            errorMessage = "Camera access is unavailable. Allow camera access in Settings, or import a receipt photo."
+        }
+    }
+
+    @MainActor
+    private func importReceipt(loadData: () async throws -> Data?) async {
         isProcessing = true
         errorMessage = nil
         didSave = false
@@ -99,7 +179,7 @@ struct ReceiptImportView: View {
         defer { isProcessing = false }
 
         do {
-            guard let data = try await photo.loadTransferable(type: Data.self) else {
+            guard let data = try await loadData() else {
                 errorMessage = "Couldn't load the selected photo."
                 return
             }
