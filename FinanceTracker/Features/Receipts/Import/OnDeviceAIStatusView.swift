@@ -3,50 +3,28 @@ import FoundationModels
 
 struct OnDeviceAIStatusView: View {
     @Environment(\.scenePhase) private var scenePhase
-
-    @State private var status = "Not checked yet"
+    @State private var isAvailable = false
 
     var body: some View {
-        Section("On-device receipt AI") {
-            Text(status)
-
-            Button("Check availability") {
-                checkAvailability()
-            }
+        Section("On-device receipt analysis") {
+            Label(
+                isAvailable ? "Available" : "Unavailable",
+                systemImage: isAvailable ? "checkmark.circle" : "exclamationmark.circle"
+            )
+            .foregroundStyle(isAvailable ? Color.green : Color.secondary)
         }
-        .onAppear {
-            checkAvailability()
-        }
+        .onAppear { checkAvailability() }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active {
-                checkAvailability()
-            }
+            // Recheck after the user changes Apple Intelligence settings.
+            if phase == .active { checkAvailability() }
         }
     }
 
     private func checkAvailability() {
-        if #available(iOS 26.0, *) {
-            switch SystemLanguageModel.default.availability {
-            case .available:
-                status = "Ready — Apple's on-device model is available."
-
-            case .unavailable(.deviceNotEligible):
-                status = "This device doesn't support the on-device model."
-
-            case .unavailable(.appleIntelligenceNotEnabled):
-                status = "Enable Apple Intelligence in Settings."
-
-            case .unavailable(.modelNotReady):
-                status = "The model isn't ready yet. Try again later."
-
-            case .unavailable:
-                status = "The model is currently unavailable."
-
-            @unknown default:
-                status = "Model availability couldn't be determined."
-            }
+        if #available(iOS 26.0, *), case .available = SystemLanguageModel.default.availability {
+            isAvailable = true
         } else {
-            status = "On-device receipt AI requires iOS 26 or later."
+            isAvailable = false
         }
     }
 }

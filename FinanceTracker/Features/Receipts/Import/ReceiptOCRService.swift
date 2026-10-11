@@ -4,7 +4,7 @@ import ImageIO
 import Vision
 
 actor ReceiptOCRService {
-    private struct TextBlock {
+    struct TextBlock {
         let text: String
         let box: CGRect
     }
@@ -81,7 +81,7 @@ actor ReceiptOCRService {
         return reconstructRows(from: blocks)
     }
 
-    private func reconstructRows(from blocks: [TextBlock]) -> String {
+    func reconstructRows(from blocks: [TextBlock]) -> String {
         // Vision's origin is bottom-left, so higher Y comes first.
         let topToBottom = blocks.sorted { first, second in
             if first.box.midY == second.box.midY {

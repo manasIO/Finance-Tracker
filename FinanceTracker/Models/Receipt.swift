@@ -10,6 +10,8 @@ final class Receipt {
 
     // Money is stored in cents: $12.50 = 1250
     var totalCents: Int64
+    var subtotalCents: Int64? = nil
+    var taxCents: Int64? = nil
 
     @Relationship(
             deleteRule: .cascade,

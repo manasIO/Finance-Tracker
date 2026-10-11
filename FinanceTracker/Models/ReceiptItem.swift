@@ -8,6 +8,7 @@ final class ReceiptItem{
 
     // Support fractional quantities such as 1.5lb of apples
     var quantity: Decimal
+    var quantityUnit: String? = nil
 
     // Optional because a receipt may only show the line total
     var unitPriceCents: Int64?

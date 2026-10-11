@@ -9,6 +9,6 @@ import SwiftData
         .modelContainer(for: [
             Receipt.self,
             ReceiptItem.self
-        ])
+        ], inMemory: ProcessInfo.processInfo.environment["FINANCE_TRACKER_TESTING"] == "1")
     }
 }

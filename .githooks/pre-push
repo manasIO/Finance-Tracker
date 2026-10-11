@@ -1,0 +1,22 @@
+#!/bin/bash
+set -euo pipefail
+# A pre-push hook must test the committed tree that Git is about to send.
+cd "$(git rev-parse --show-toplevel)"
+if [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+    printf 'Commit or stash pending changes before pushing so tests cover the pushed code.\n' >&2
+    exit 1
+fi
+# Refuse to validate a different branch while testing this checkout's HEAD.
+head_commit="$(git rev-parse HEAD)"
+while read -r local_ref local_oid remote_ref remote_oid; do
+    if [[ "$local_oid" != 0000000000000000000000000000000000000000 && "$local_oid" != "$head_commit" ]]; then
+        printf 'Check out the branch being pushed before running pre-push tests.\n' >&2
+        exit 1
+    fi
+done
+# Git supplies ref updates on stdin; xcodebuild must not consume them.
+./scripts/pre-push-check.sh </dev/null
+if [[ "$(git rev-parse HEAD)" != "$head_commit" || -n "$(git status --porcelain --untracked-files=normal)" ]]; then
+    printf 'The checkout changed during testing. Commit or stash changes and push again.\n' >&2
+    exit 1
+fi

@@ -1,0 +1,32 @@
+name: iOS checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-checks-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Unit and integration tests
+    runs-on: xcode-27
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: Test and verify Release build
+        run: ./scripts/pre-push-check.sh --simulator
+      - name: Upload results and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

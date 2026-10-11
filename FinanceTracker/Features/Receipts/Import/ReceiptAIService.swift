@@ -23,6 +23,8 @@ struct ReceiptAIService {
             Row grouping is approximate; flag ambiguous associations.
 
             Merchant:
+            - First quote the identifying receipt text in merchantEvidence,
+              then determine merchantName from that evidence.
             - Prefer the printed business name in the receipt header.
             - If the header has no identifiable name, search the entire receipt,
               including footer text, websites, survey invitations, and slogans.
@@ -37,6 +39,13 @@ struct ReceiptAIService {
 
             Items:
             - Include purchased products only.
+            - A product row such as MILK | 3.99 means lineTotal is "3.99".
+              If no quantity or per-unit price is printed, those fields are nil;
+              this does not make the printed line total unknown.
+            - Item prices can include a currency symbol or trailing tax marker;
+              extract only the monetary amount into lineTotal.
+            - Do not calculate lineTotal from quantity and unitPrice or from
+              the subtotal. Extract the printed item charge.
             - Product codes and barcode numbers are identifiers, not quantities.
             - ITEMS SOLD is the receipt-wide count, never an item's quantity.
             - Use a quantity only when explicitly associated with that item.
@@ -73,7 +82,8 @@ struct ReceiptAIService {
             \(text)
             END RECEIPT
             """,
-            generating: ReceiptExtraction.self
+            generating: ReceiptExtraction.self,
+            options: GenerationOptions(samplingMode: .greedy)
         )
 
         return response.content

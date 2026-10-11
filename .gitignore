@@ -6,3 +6,6 @@ xcuserdata/
 .env
 .env.*
 !.env.example
+
+# Local test results and coverage
+.test-results/

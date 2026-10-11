@@ -8,6 +8,19 @@ struct ReceiptDetailView: View {
         List {
             Section("Purchase") {
                 LabeledContent("Store", value: receipt.merchantName)
+                LabeledContent("Date") {
+                    Text(receipt.purchaseDate, format: .dateTime.month().day().year())
+                }
+                if let subtotal = receipt.subtotalCents {
+                    LabeledContent("Subtotal") {
+                        Text(dollars(subtotal), format: .currency(code: receipt.currencyCode))
+                    }
+                }
+                if let tax = receipt.taxCents {
+                    LabeledContent("Tax") {
+                        Text(dollars(tax), format: .currency(code: receipt.currencyCode))
+                    }
+                }
 
                 LabeledContent("Total") {
                     Text(
@@ -27,7 +40,7 @@ struct ReceiptDetailView: View {
                                 .font(.headline)
 
                             Text(
-                                "Quantity: \(item.quantity.description)"
+                                "Quantity: \(item.quantity.description)\(item.quantityUnit.map { " " + $0 } ?? "")"
                             )
 
                             Text(
