@@ -10,6 +10,7 @@ struct DashboardView: View {
     @Query private var recurringExpenses: [RecurringExpense]
     @Query private var recurringPayments: [RecurringPayment]
     @Query private var budgets: [MonthlyBudget]
+    @Query private var profiles: [UserProfile]
     @State private var showingQuickExpense = false
     @State private var showingBudget = false
     @State private var showingReceiptOptions = false
@@ -73,6 +74,12 @@ struct DashboardView: View {
         let categories = CategorySummary(entries: itemEntries, now: now, currency: currency)
         let food = FoodSpendingSummary(entries: itemEntries, now: now, currency: currency)
         return List {
+            Section {
+                Text(DashboardGreeting.message(name: profiles.first?.name, at: now))
+                    .font(.system(.title2, design: .rounded, weight: .semibold))
+                    .padding(.vertical, 4)
+                    .listRowBackground(Color.clear)
+            }
             Section {
                 Button { showingQuickExpense = true } label: {
                     Label("Quick expense", systemImage: "plus.circle.fill")

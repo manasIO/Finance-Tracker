@@ -62,7 +62,7 @@ struct ProfileView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Color("AppBackground"))
-            .navigationTitle("Profile")
+            .navigationTitle(profileTitle)
             .onAppear {
                 guard !didLoad else { return }
                 avatar = ProfileAvatar(rawValue: profiles.first?.avatarSymbol ?? "") ?? .cat
@@ -78,6 +78,11 @@ struct ProfileView: View {
                 Button("OK", role: .cancel) { message = nil }
             } message: { Text(message ?? "") }
         }
+    }
+
+    private var profileTitle: String {
+        let savedName = profiles.first?.name.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return savedName.isEmpty ? "Profile" : savedName
     }
 
     private func selectAvatar(_ selected: ProfileAvatar) {

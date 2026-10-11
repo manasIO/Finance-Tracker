@@ -25,7 +25,7 @@ Add an expense in seconds, import or photograph a receipt, review the extracted 
 
 | Area | Available behavior |
 | --- | --- |
-| Dashboard | Prominent Quick expense and Add receipt actions, monthly spending, comparable-period change, recurring expenses, and budget status |
+| Dashboard | Time-based greeting using the optional profile name, prominent Quick expense and Add receipt actions, monthly spending, comparable-period change, recurring expenses, and budget status |
 | Quick expenses | Amount-only entry with optional description, category, currency, date, and split flag |
 | Receipt import | Import a photo or capture one with the camera, recognize text locally, and review structured results before saving |
 | Manual receipts | Enter a purchase and its items without a receipt photo |
@@ -147,7 +147,7 @@ This is a tracking list. It does not calculate each person's share or record rei
 
 ### Customize your profile
 
-Use **Profile** to save optional personal information, choose an animal avatar, or switch between System, Light, and Dark appearance. Profile details stay local.
+Use **Profile** to save optional personal information, choose an animal avatar, or switch between System, Light, and Dark appearance. The page title shows your saved name when provided. The dashboard greets you with your first name: Good morning before local noon, and Good evening afterward. Profile details stay local.
 
 ## How spending and budgets work
 
